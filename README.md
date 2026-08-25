@@ -8,7 +8,9 @@ API RESTful desenvolvida durante a Unidade Curricular de **Programação Web II 
 
 # 1. Descrição
 
-Projeto acadêmico desenvolvido para praticar a criação de uma API REST com CRUD de alunos. Nesta etapa, correspondente à branch `branch_20260804`, a aplicação usa JavaScript, Node.js e Express e mantém os dados somente em memória.
+Projeto acadêmico desenvolvido para praticar a criação de uma API REST com CRUD de alunos. Nesta etapa, correspondente à branch `branch_20260811`, o projeto passa a contar com um banco de dados **MySQL 8.4** executado em container Docker, com persistência via volume.
+
+**Importante:** a API Express **ainda utiliza o array em memória** (herdado da branch `branch_20260804`) e **ainda não está conectada ao MySQL**. O banco de dados existe e funciona de forma independente nesta etapa. A conexão Node.js ↔ MySQL (com `mysql2`) é o objetivo da próxima etapa do curso.
 
 ---
 
@@ -20,7 +22,8 @@ Projeto acadêmico desenvolvido para praticar a criação de uma API REST com CR
 - atualizar nome e curso de um aluno;
 - excluir um aluno;
 - retornar erro `404` ao buscar, atualizar ou excluir um ID inexistente;
-- gerar automaticamente o ID quando ele não for enviado no cadastro.
+- gerar automaticamente o ID quando ele não for enviado no cadastro;
+- banco de dados MySQL 8.4 rodando em container Docker, com tabela `alunos` e persistência via volume (ainda não conectado à API).
 
 ---
 
@@ -31,6 +34,8 @@ Projeto acadêmico desenvolvido para praticar a criação de uma API REST com CR
 - **JavaScript**;
 - **Nodemon**;
 - **ES Modules**;
+- **Docker** e **Docker Compose**;
+- **MySQL 8.4**;
 - **Git** e **GitHub** para versionamento.
 
 ---
@@ -50,6 +55,7 @@ api-rest-express/
 │       └── opencollection.yml
 ├── src/
 │   └── app.js
+├── docker-compose.yml
 ├── .gitignore
 ├── README.md
 ├── package.json
@@ -57,7 +63,29 @@ api-rest-express/
 └── server.js
 ```
 
-O arquivo `server.js` inicia o servidor. O arquivo `src/app.js` configura o Express, mantém o mock de alunos e define as rotas.
+O arquivo `server.js` inicia o servidor. O arquivo `src/app.js` configura o Express, mantém o mock de alunos e define as rotas. O arquivo `docker-compose.yml` sobe um container MySQL 8.4 usado nesta etapa, de forma independente da API.
+
+Infraestrutura desta etapa:
+
+```text
+Computador
+│
+├── Node.js
+│      ↓
+│   API Express (array em memória)
+│
+└── Docker
+       ↓
+    Container mysql-api-rest
+       ↓
+    MySQL 8.4
+       ↓
+    banco api_rest
+       ↓
+    tabela alunos
+```
+
+Express e MySQL permanecem separados nesta branch — a integração fica para a próxima etapa.
 
 ---
 
@@ -67,7 +95,8 @@ Antes de executar o projeto, é necessário possuir:
 
 - Node.js;
 - npm;
-- Git.
+- Git;
+- Docker e Docker Compose (para o banco de dados MySQL desta etapa).
 
 ---
 
@@ -273,10 +302,196 @@ Limitações atuais:
 
 ---
 
-# 11. Autoria
+# 11. Docker e MySQL
+
+Nesta etapa (branch `branch_20260811`) o projeto ganha um banco de dados **MySQL 8.4**, executado em container Docker via Docker Compose, de forma **independente** da API Express.
+
+## 11.1 Subir o banco de dados
+
+```bash
+docker compose up -d
+```
+
+Verificar se o container está em execução:
+
+```bash
+docker ps
+docker compose ps
+```
+
+O container esperado é `mysql-api-rest`.
+
+## 11.2 Configuração do `docker-compose.yml`
+
+| Item | Valor |
+| --- | --- |
+| Imagem | `mysql:8.4` |
+| Container | `mysql-api-rest` |
+| Porta (host) | `3306` |
+| Banco criado automaticamente | `api_rest` |
+| Usuário da aplicação | `api_user` |
+| Senha do usuário da aplicação | `api123` |
+| Senha do usuário `root` | `root123` |
+| Volume | `mysql_data` (persistência dos dados) |
+
+**Nota:** `MYSQL_ROOT_PASSWORD` não estava definida em nenhum material anterior do projeto; o valor `root123` foi escolhido nesta etapa como senha didática, seguindo o mesmo padrão do usuário `api_user`.
+
+## 11.3 Parar, iniciar e remover o ambiente
+
+```bash
+docker compose stop      # para o container, mantém tudo (dados incluídos)
+docker compose start     # reinicia o container parado
+docker compose down      # remove container e rede, mas MANTÉM o volume (dados preservados)
+docker compose down -v   # remove container, rede e o VOLUME (dados perdidos)
+docker volume ls         # lista os volumes Docker existentes
+```
+
+---
+
+# 12. Banco de Dados e Tabela `alunos`
+
+Ao acessar o MySQL como `root`:
+
+```bash
+docker exec -it mysql-api-rest mysql -u root -p
+```
+
+O banco `api_rest` já existe automaticamente (criado pela variável `MYSQL_DATABASE` do `docker-compose.yml`):
+
+```sql
+SHOW DATABASES;
+USE api_rest;
+```
+
+A tabela `alunos` é criada manualmente:
+
+```sql
+CREATE TABLE alunos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    curso VARCHAR(100) NOT NULL
+);
+```
+
+Validação da estrutura:
+
+```sql
+SHOW TABLES;
+DESCRIBE alunos;
+```
+
+Inserção dos registros iniciais (o `id` não é enviado, pois é gerado automaticamente por `AUTO_INCREMENT`):
+
+```sql
+INSERT INTO alunos (nome, curso) VALUES ('Bruno', 'ADS');
+INSERT INTO alunos (nome, curso) VALUES ('Maria', 'ADS');
+INSERT INTO alunos (nome, curso) VALUES ('João', 'Sistemas de Informação');
+INSERT INTO alunos (nome, curso) VALUES ('Ana', 'ADS');
+```
+
+---
+
+# 13. Comandos SQL — CRUD Básico
+
+```sql
+-- READ (todos)
+SELECT * FROM alunos;
+
+-- READ (por ID)
+SELECT * FROM alunos WHERE id = 1;
+
+-- UPDATE
+UPDATE alunos
+SET nome = 'Bruno Nascimento',
+    curso = 'ADS'
+WHERE id = 1;
+
+-- DELETE
+DELETE FROM alunos WHERE id = 4;
+```
+
+Cada comando foi validado com um `SELECT` posterior para confirmar o efeito.
+
+---
+
+# 14. Relação CRUD / HTTP / SQL
+
+| Operação CRUD | Verbo HTTP | Comando SQL |
+| --- | --- | --- |
+| CREATE | `POST /lista` | `INSERT` |
+| READ | `GET /lista` | `SELECT *` |
+| READ (por ID) | `GET /lista/:id` | `SELECT ... WHERE id = ?` |
+| UPDATE | `PUT /lista/:id` | `UPDATE ... WHERE id = ?` |
+| DELETE | `DELETE /lista/:id` | `DELETE ... WHERE id = ?` |
+
+**Importante:** esta tabela é apenas documentação da relação conceitual entre a API e o banco. Nesta branch, o Express **ainda não executa** nenhum desses comandos SQL — ele continua operando sobre o array em memória.
+
+---
+
+# 15. Usuário da Aplicação e Configuração de Conexão
+
+O usuário `api_user` é o que será usado futuramente pelo Node.js para se conectar ao MySQL. Ele foi validado nesta etapa:
+
+```bash
+docker exec -it mysql-api-rest mysql -u api_user -p
+```
+
+```sql
+USE api_rest;
+SELECT * FROM alunos;
+```
+
+Dados de conexão (apenas documentados, ainda não utilizados em código):
+
+| Parâmetro | Valor |
+| --- | --- |
+| Host | `localhost` |
+| Porta | `3306` |
+| Banco | `api_rest` |
+| Usuário | `api_user` |
+| Senha | `api123` |
+
+Nenhuma dependência de conexão (`mysql2`) foi instalada nesta branch.
+
+---
+
+# 16. Persistência com Docker Volume
+
+Foi validado que:
+
+- `docker compose stop` / `docker compose start` preserva o container e os dados;
+- `docker compose down` remove container e rede, **mas mantém o volume** — ao subir novamente com `docker compose up -d`, a tabela `alunos` e seus registros continuam existindo;
+- `docker compose down -v` remove também o **volume** — ao subir novamente, o banco `api_rest` é recriado (pela variável de ambiente do Compose), porém **vazio**, sem a tabela `alunos` e sem os registros, pois eles existiam apenas no volume removido.
+
+Após o teste de remoção do volume, o ambiente foi restaurado (tabela recriada e registros iniciais reinseridos) para que a disciplina possa continuar normalmente.
+
+---
+
+# 17. Exercícios Realizados — Docker e MySQL
+
+1. `docker compose up -d` e confirmação do container `mysql-api-rest` com `docker ps`;
+2. acesso como `root` e `SHOW DATABASES;`;
+3. `USE api_rest;` e criação da tabela `alunos`;
+4. cadastro de cinco alunos com `INSERT INTO alunos ...`;
+5. listagem com `SELECT * FROM alunos;`;
+6. busca de um aluno específico com `SELECT ... WHERE id = ...`;
+7. atualização de um aluno com `UPDATE` e validação com `SELECT`;
+8. exclusão de um aluno com `DELETE` e validação com `SELECT`;
+9. `docker compose down` seguido de `docker compose up -d`, confirmando que o volume preservou os dados;
+10. `docker compose down -v` seguido de `docker compose up -d`, confirmando que o banco é recriado vazio (sem tabela `alunos`) quando o volume é removido.
+
+---
+
+# 18. Próxima Etapa
+
+O MySQL está funcionando de forma independente da aplicação. A próxima etapa da disciplina será conectar o Node.js/Express ao MySQL usando o driver `mysql2`, substituindo gradualmente o array em memória por consultas ao banco de dados.
+
+---
+
+# 19. Autoria
 
 **Autor:** Mickael Lopes de Souza
 
 **Disciplina:** Programação Web II — Senac RJ
 
-**Branch:** `branch_20260804`
+**Branch:** `branch_20260811`
