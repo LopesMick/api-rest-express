@@ -8,11 +8,11 @@ API RESTful desenvolvida durante a Unidade Curricular de **Programação Web II 
 
 # 1. Descrição
 
-Projeto acadêmico desenvolvido de forma incremental, por etapas versionadas em branches. Esta etapa, correspondente à branch `branch_20260811`, implementa o **Tutorial 3 — Conectando Node.js e Express ao MySQL**.
+Projeto acadêmico desenvolvido de forma incremental, por etapas versionadas em branches. Esta etapa, correspondente à branch `branch_20260821`, implementa o **Tutorial 4 — CRUD com Routes, Controllers e Repositories**.
 
-A aplicação Express passa a carregar variáveis de ambiente, criar um **pool de conexões MySQL** (via `mysql2/promise`) e validar essa conexão com `SELECT 1` antes de iniciar o servidor HTTP.
+O CRUD de alunos deixa de ficar concentrado em `src/app.js` e passa a seguir a separação **Route → Controller → Repository → MySQL**, com persistência real na tabela `alunos`.
 
-**Importante:** esta etapa estabelece apenas a **conexão** com o banco. O CRUD completo via SQL (rotas consultando/alterando a tabela `alunos`) ainda **não** foi implementado — isso pertence ao próximo tutorial.
+**Importante:** por enquanto **não há camada Service** — ainda não existe regra de negócio suficiente para justificar essa camada. Ela poderá ser introduzida em uma etapa futura, se necessário.
 
 ---
 
@@ -22,48 +22,57 @@ A aplicação Express passa a carregar variáveis de ambiente, criar um **pool d
 | --- | --- |
 | `branch_20260804` | API REST com CRUD de alunos em array em memória (Tutorial 1) |
 | `branch_20260811` | MySQL 8.4 via Docker Compose, independente da API (Tutorial 2) |
-| `branch_20260818` | Conexão Express ↔ MySQL via `mysql2`/pool, com `SELECT 1` (Tutorial 3 — esta branch) |
+| `branch_20260818` | Conexão Express ↔ MySQL via `mysql2`/pool, com `SELECT 1` (Tutorial 3) |
+| `branch_20260821` | CRUD real via Route → Controller → Repository → MySQL (Tutorial 4 — esta branch) |
 
-Nesta branch, a rota `GET /` (verificação simples da API) é a única disponível em `src/app.js` — o CRUD em memória das etapas anteriores foi removido intencionalmente, conforme a estrutura do Tutorial 3, para não confundir com o CRUD via SQL que será implementado no próximo tutorial.
+Esta branch **não usa mais array em memória** para o CRUD. Todos os dados de `/alunos` vêm e voltam do MySQL.
 
 ---
 
 # 3. Arquitetura Atual
 
 ```text
-HTTP
- ↓
-Express
- ↓
-mysql2
- ↓
-Connection Pool
- ↓
-MySQL
+Requisição HTTP
+      ↓
+    Route
+      ↓
+ Controller
+      ↓
+ Repository
+      ↓
+    MySQL
 ```
 
-Ainda **não existe** nesta etapa:
+## Responsabilidade de cada camada
 
-```text
-Route
- ↓
-Controller
- ↓
-Repository
- ↓
-MySQL
-```
+**Route** (`src/routes/alunos.routes.js`)
+- define método HTTP + URL;
+- encaminha a requisição para o Controller;
+- não contém SQL nem regra de persistência.
 
-Essa camada (routes/controllers/repositories e o CRUD SQL completo) pertence ao próximo tutorial.
+**Controller** (`src/controllers/AlunoController.js`)
+- conhece `req` e `res`;
+- define o status HTTP da resposta;
+- lê `req.params` e `req.body`;
+- chama o Repository;
+- transforma o resultado do Repository em resposta HTTP.
+
+**Repository** (`src/repositories/AlunoRepository.js`)
+- conhece SQL e o banco de dados;
+- utiliza o `pool` de conexões;
+- **não conhece** `req`/`res`;
+- **não define** status HTTP — apenas retorna dados ou `null`/`boolean`.
+
+Nesta etapa **não existe camada Service** — a lógica é simples o suficiente para o Controller chamar o Repository diretamente.
 
 ---
 
 # 4. Tecnologias Utilizadas
 
 - **Node.js** (recursos nativos `--watch` e `--env-file`);
-- **Express**;
+- **Express** (com `express.Router()`);
 - **JavaScript**, **ES Modules**;
-- **mysql2/promise** (driver MySQL com suporte a `async`/`await`, sem callbacks);
+- **mysql2/promise** (driver MySQL com `async`/`await` e *prepared statements*);
 - **Docker** e **Docker Compose**;
 - **MySQL 8.4**;
 - **Git** e **GitHub** para versionamento.
@@ -84,8 +93,14 @@ api-rest-express/
 │       ├── Raiz.yml
 │       └── opencollection.yml
 ├── src/
+│   ├── controllers/
+│   │   └── AlunoController.js
 │   ├── database/
 │   │   └── pool.js
+│   ├── repositories/
+│   │   └── AlunoRepository.js
+│   ├── routes/
+│   │   └── alunos.routes.js
 │   ├── app.js
 │   └── server.js
 ├── .env              (local, não versionado)
@@ -97,17 +112,11 @@ api-rest-express/
 └── package-lock.json
 ```
 
-- `src/app.js` — configura o Express e expõe `GET /`.
-- `src/server.js` — carrega o `pool`, valida a conexão com `SELECT 1` e só então inicia o servidor HTTP.
-- `src/database/pool.js` — cria o pool de conexões MySQL a partir das variáveis de ambiente.
-- `.env` — credenciais locais (ignorado pelo Git).
-- `.env.example` — modelo versionável das variáveis necessárias.
-
 ---
 
 # 6. Pré-requisitos
 
-- Node.js (versão com suporte a `--watch` e `--env-file`, usadas nos scripts do projeto);
+- Node.js (versão com suporte a `--watch` e `--env-file`);
 - npm;
 - Git;
 - Docker e Docker Compose (para o banco de dados MySQL).
@@ -116,245 +125,230 @@ api-rest-express/
 
 # 7. Variáveis de Ambiente
 
-Crie um arquivo `.env` na raiz do projeto (baseado em `.env.example`):
-
-```env
-PORT=3000
-
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=api_user
-DB_PASSWORD=api123
-DB_NAME=api_rest
-```
-
-O `.env.example` contém a mesma estrutura, sem as credenciais preenchidas, e é o único dos dois arquivos versionado no Git:
-
-```env
-PORT=3000
-
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=
-DB_PASSWORD=
-DB_NAME=api_rest
-```
-
-**Importante:**
-
-- o `.env` está listado no `.gitignore` e nunca deve ser commitado;
-- nenhuma credencial fica escrita diretamente no código — tudo é lido via `process.env`;
-- as credenciais são as mesmas definidas no `docker-compose.yml` da branch anterior.
-
-## 7.1 `DB_HOST`: `localhost` x `mysql`
-
-- Quando o Node.js roda **fora do Docker** (como nesta etapa, direto na máquina) → `DB_HOST=localhost`.
-- Quando a API e o MySQL estiverem **no mesmo `docker-compose.yml`**, rodando como serviços do mesmo Compose (etapa futura) → `DB_HOST=mysql` (nome do serviço, resolvido pela rede interna do Docker).
-
-Nesta branch, o Node.js roda localmente, então `DB_HOST=localhost` é o valor correto e não deve ser alterado.
+Crie um arquivo `.env` na raiz do projeto (baseado em `.env.example`), com `PORT`, `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD` e `DB_NAME` — os mesmos valores usados desde a branch `branch_20260818`. O `.env` está no `.gitignore` e nunca é versionado; o `.env.example` traz a mesma estrutura sem as credenciais.
 
 ---
 
 # 8. Instalação e Execução
 
-Clone o repositório e acesse a branch do tutorial:
-
 ```bash
 git clone https://github.com/LopesMick/api-rest-express.git
 cd api-rest-express
-git switch branch_20260818
-```
-
-Instale as dependências:
-
-```bash
+git switch branch_20260821
 npm install
-```
-
-Suba o MySQL via Docker Compose:
-
-```bash
 docker compose up -d
 ```
 
-Crie o `.env` (baseado no `.env.example`) com as credenciais da seção 7.
-
-Inicie a aplicação:
+Crie o `.env` (baseado no `.env.example`) e inicie a aplicação:
 
 ```bash
 npm run dev
 ```
 
-Resultado esperado no terminal:
+Resultado esperado:
 
 ```text
 Conexão com o MySQL estabelecida
 Servidor rodando em http://localhost:3000
 ```
 
-A API só inicia o servidor HTTP se a conexão com o MySQL for validada com sucesso (`SELECT 1`). Caso contrário, o processo é encerrado (`process.exit(1)`) com uma mensagem de erro.
-
 ---
 
-# 9. Scripts npm
-
-```json
-"scripts": {
-  "dev": "node --watch --env-file=.env src/server.js",
-  "start": "node --env-file=.env src/server.js"
-}
-```
-
-- `node --env-file=.env` carrega as variáveis do `.env` nativamente, sem precisar de bibliotecas como `dotenv`;
-- `node --watch` reinicia o processo automaticamente a cada alteração de arquivo — substitui o Nodemon nesta etapa;
-- `npm start` roda a aplicação sem watch, para uso mais próximo de produção.
-
----
-
-# 10. Pool de Conexões (`src/database/pool.js`)
+# 9. Repository (`src/repositories/AlunoRepository.js`)
 
 ```js
-import mysql from 'mysql2/promise'
+import pool from '../database/pool.js'
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+class AlunoRepository {
+  async findAll() {
+    const [rows] = await pool.execute(
+      'SELECT id, nome, curso FROM alunos ORDER BY id'
+    )
+    return rows
+  }
 
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-})
+  async findById(id) {
+    const [rows] = await pool.execute(
+      'SELECT id, nome, curso FROM alunos WHERE id = ?',
+      [id]
+    )
+    return rows[0] ?? null
+  }
 
-export default pool
-```
+  async create({ nome, curso }) {
+    const [result] = await pool.execute(
+      'INSERT INTO alunos (nome, curso) VALUES (?, ?)',
+      [nome, curso]
+    )
+    return { id: result.insertId, nome, curso }
+  }
 
-O pool não abre conexão manualmente (`connect()`) nem cria uma conexão por requisição — as conexões são gerenciadas automaticamente pelo `mysql2`, reaproveitadas entre requisições, com limite de 10 conexões simultâneas.
+  async update(id, { nome, curso }) {
+    const [result] = await pool.execute(
+      'UPDATE alunos SET nome = ?, curso = ? WHERE id = ?',
+      [nome, curso, id]
+    )
+    if (result.affectedRows === 0) return null
+    return this.findById(id)
+  }
 
----
-
-# 11. Validação de Conexão (`src/server.js`)
-
-```js
-import app from './app.js'
-import pool from './database/pool.js'
-
-const port = Number(process.env.PORT) || 3000
-
-async function startServer() {
-  try {
-    await pool.query('SELECT 1')
-
-    console.log('Conexão com o MySQL estabelecida')
-
-    app.listen(port, () => {
-      console.log(`Servidor rodando em http://localhost:${port}`)
-    })
-  } catch (error) {
-    console.error('Não foi possível conectar ao banco de dados')
-    console.error(error.message)
-
-    process.exit(1)
+  async delete(id) {
+    const [result] = await pool.execute(
+      'DELETE FROM alunos WHERE id = ?',
+      [id]
+    )
+    return result.affectedRows > 0
   }
 }
 
-startServer()
+export default new AlunoRepository()
 ```
 
-`SELECT 1` é usado apenas como teste de comunicação com o banco — não consulta nenhuma tabela da aplicação. Se a query falhar, o erro é logado e o processo é encerrado antes de o Express começar a escutar requisições.
+## 9.1 Prepared Statements
+
+Todo dado vindo da requisição (`id`, `nome`, `curso`) é passado como **parâmetro** (`?`), nunca concatenado diretamente na string SQL:
+
+```js
+// CORRETO
+pool.execute('SELECT id, nome, curso FROM alunos WHERE id = ?', [id])
+
+// INCORRETO (nunca usado neste projeto)
+`SELECT * FROM alunos WHERE id = ${id}`
+```
+
+Isso é aplicado em `SELECT` por ID, `INSERT`, `UPDATE` e `DELETE`, prevenindo SQL Injection.
+
+## 9.2 `insertId` e `affectedRows`
+
+- `result.insertId` — ID gerado pelo MySQL (`AUTO_INCREMENT`) em um `INSERT`, usado para montar a resposta do `create()`.
+- `result.affectedRows` — quantidade de linhas afetadas por `UPDATE`/`DELETE`; usado para decidir se o registro existia (`0` → não existia).
 
 ---
 
-# 12. Endpoint Disponível
+# 10. Controller (`src/controllers/AlunoController.js`)
 
-| Método | Endpoint | Descrição | Resposta esperada |
+O Controller lê `req.params`/`req.body`, chama o Repository correspondente e traduz o resultado em resposta HTTP (status + JSON). Ele **não contém SQL**.
+
+Resumo das respostas:
+
+| Método | Situação | Status | Corpo |
 | --- | --- | --- | --- |
-| GET | `/` | Verifica se a API está funcionando | `200` |
+| `index` | sempre | `200` | array de alunos |
+| `show` | encontrado | `200` | objeto do aluno |
+| `show` | não encontrado | `404` | `{ "mensagem": "Aluno não encontrado" }` |
+| `store` | sempre | `201` + header `Location: /alunos/{id}` | objeto criado |
+| `update` | encontrado | `200` | objeto atualizado |
+| `update` | não encontrado | `404` | `{ "mensagem": "Aluno não encontrado" }` |
+| `delete` | removido | `204` | sem corpo |
+| `delete` | não encontrado | `404` | `{ "mensagem": "Aluno não encontrado" }` |
 
-```http
-GET /
+---
+
+# 11. Routes (`src/routes/alunos.routes.js`)
+
+```js
+import { Router } from 'express'
+import alunoController from '../controllers/AlunoController.js'
+
+const router = Router()
+
+router.post('/', alunoController.store.bind(alunoController))
+router.get('/', alunoController.index.bind(alunoController))
+router.get('/:id', alunoController.show.bind(alunoController))
+router.put('/:id', alunoController.update.bind(alunoController))
+router.delete('/:id', alunoController.delete.bind(alunoController))
+
+export default router
 ```
 
-Resposta `200`:
+Registrada em `src/app.js` com prefixo `/alunos`:
 
-```json
+```js
+app.use('/alunos', alunosRoutes)
+```
+
+---
+
+# 12. Endpoints
+
+| Método | Endpoint | Descrição | Status |
+| --- | --- | --- | --- |
+| GET | `/` | Verifica se a API está funcionando | `200` |
+| POST | `/alunos` | Cadastra um aluno | `201` |
+| GET | `/alunos` | Lista todos os alunos | `200` |
+| GET | `/alunos/:id` | Busca um aluno pelo ID | `200` ou `404` |
+| PUT | `/alunos/:id` | Atualiza nome e curso | `200` ou `404` |
+| DELETE | `/alunos/:id` | Exclui um aluno | `204` ou `404` |
+
+Exemplo de cadastro:
+
+```http
+POST /alunos
+Content-Type: application/json
+
 {
-  "mensagem": "API REST funcionando"
+  "nome": "Pedro",
+  "curso": "ADS"
 }
 ```
 
-Nesta etapa, nenhuma rota consulta ou altera a tabela `alunos` — isso será implementado no próximo tutorial, com routes/controllers/repositories dedicados.
+Resposta `201`, com `Location: /alunos/{id}`:
+
+```json
+{
+  "id": 5,
+  "nome": "Pedro",
+  "curso": "ADS"
+}
+```
+
+O `id` é sempre gerado pelo MySQL (`AUTO_INCREMENT`); o cliente nunca o envia.
 
 ---
 
-# 13. Exercícios Realizados
+# 13. Relação HTTP → Controller → Repository → SQL
 
-## 13.1 Conexão bem-sucedida
-
-`npm run dev` com as credenciais corretas exibe:
-
-```text
-Conexão com o MySQL estabelecida
-Servidor rodando em http://localhost:3000
-```
-
-E `GET /` responde `200` com `{ "mensagem": "API REST funcionando" }`.
-
-## 13.2 Exercício 1 — Senha incorreta
-
-Alterando temporariamente `DB_PASSWORD` para um valor inválido, a aplicação encerra com:
-
-```text
-Não foi possível conectar ao banco de dados
-Access denied for user 'api_user'@'...' (using password: YES)
-```
-
-## 13.3 Exercício 2 — Banco inexistente
-
-Alterando temporariamente `DB_NAME` para um banco que não existe, a aplicação encerra com:
-
-```text
-Não foi possível conectar ao banco de dados
-Access denied for user 'api_user'@'%' to database 'banco_inexistente'
-```
-
-## 13.4 Validação didática — porta incorreta
-
-Alterando temporariamente `DB_PORT` para uma porta sem servidor MySQL escutando, a conexão falha com `error.code = 'ECONNREFUSED'` (mensagem de erro vazia, diferente dos casos de senha/banco incorretos, que retornam mensagem explicativa do MySQL).
-
-Isso evidencia a diferença entre três tipos de falha:
-
-- **credenciais inválidas** → o MySQL responde recusando o acesso (`Access denied`);
-- **banco inexistente** → o MySQL responde recusando o acesso ao banco específico;
-- **porta/servidor inacessível** → a conexão TCP nem chega a ser estabelecida (`ECONNREFUSED`).
-
-Em todos os casos, as variáveis foram restauradas para os valores corretos ao final do teste.
-
-## 13.5 Exercício 3 — SELECT temporário
-
-Foi adicionado temporariamente em `src/server.js`, após o `SELECT 1`:
-
-```js
-const [rows] = await pool.query('SELECT * FROM alunos')
-console.log(rows)
-```
-
-Ao rodar `npm run dev`, os 4 registros da tabela `alunos` (criada na branch `branch_20260811`) apareceram no terminal, confirmando que o pool consegue consultar dados reais. As duas linhas foram **removidas** em seguida — `src/server.js` permanece apenas com `SELECT 1` para teste de conexão.
+| Verbo HTTP | Controller | Repository | SQL |
+| --- | --- | --- | --- |
+| `POST /alunos` | `store` | `create` | `INSERT INTO alunos (nome, curso) VALUES (?, ?)` |
+| `GET /alunos` | `index` | `findAll` | `SELECT id, nome, curso FROM alunos ORDER BY id` |
+| `GET /alunos/:id` | `show` | `findById` | `SELECT id, nome, curso FROM alunos WHERE id = ?` |
+| `PUT /alunos/:id` | `update` | `update` | `UPDATE alunos SET nome = ?, curso = ? WHERE id = ?` |
+| `DELETE /alunos/:id` | `delete` | `delete` | `DELETE FROM alunos WHERE id = ?` |
 
 ---
 
-# 14. Próxima Etapa
+# 14. Persistência Real no MySQL
 
-A conexão Express ↔ MySQL está validada. O próximo tutorial implementará o CRUD completo via SQL, organizando o código em routes, controllers e repositories, substituindo definitivamente o array em memória por consultas ao banco `api_rest`.
+Diferente das etapas com array em memória, os dados agora sobrevivem:
+
+- **ao reiniciar apenas o processo Node.js** — os dados estão no MySQL, não no processo Express;
+- **a um `docker compose down` seguido de `docker compose up -d`** — o Docker Volume (`mysql_data`, criado na branch `branch_20260811`) preserva os arquivos do banco entre execuções do container.
+
+Ambos os cenários foram testados nesta etapa: alunos cadastrados via `POST /alunos` continuaram aparecendo em `GET /alunos` após o reinício do Node e após o ciclo `docker compose down` / `up -d`.
 
 ---
 
-# 15. Autoria
+# 15. Exercícios Realizados
+
+1. **CRUD completo** — os cinco endpoints (`POST`, `GET`, `GET /:id`, `PUT`, `DELETE`) testados com sucesso em `/alunos`.
+2. **Persistência ao reiniciar o Node** — 3 alunos cadastrados via `POST /alunos`; após reiniciar somente o processo Node, `GET /alunos` continuou retornando os mesmos registros (dados vivem no MySQL, não no processo).
+3. **Persistência com Docker Volume** — `docker compose down` seguido de `docker compose up -d`; após o MySQL voltar, `GET /alunos` confirmou que os dados continuaram existindo, graças ao volume Docker.
+4. **`GET /alunos/999` → `404`** — o `AlunoRepository.findById` retorna `null` quando a linha não existe; é o `AlunoController.show` quem decide transformar esse `null` em `HTTP 404`, pois **status HTTP é responsabilidade do Controller, não do Repository**.
+5. **Análise de segurança — DELETE sem WHERE** — foi analisado (sem executar) o efeito de `DELETE FROM alunos` sem a cláusula `WHERE id = ?`: esse comando apagaria **todos os registros da tabela** de uma só vez. O `AlunoRepository.delete` mantém `WHERE id = ?`, restrito ao ID recebido.
+
+---
+
+# 16. Próxima Etapa
+
+Não há camada Service nesta branch, pois ainda não há regra de negócio que a justifique. Etapas futuras podem introduzir validação de entrada, tratamento de erros centralizado e, se necessário, a camada Service.
+
+---
+
+# 17. Autoria
 
 **Autor:** Mickael Lopes de Souza
 
 **Disciplina:** Programação Web II — Senac RJ
 
-**Branch:** `branch_20260818`
+**Branch:** `branch_20260821`
