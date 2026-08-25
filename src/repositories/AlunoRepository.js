@@ -18,6 +18,33 @@ class AlunoRepository {
     return rows[0] ?? null
   }
 
+  async findByNomeCurso(nome, curso) {
+    const [rows] = await pool.execute(
+      'SELECT id, nome, curso FROM alunos WHERE nome = ? AND curso = ? LIMIT 1',
+      [nome, curso]
+    )
+
+    return rows[0] ?? null
+  }
+
+  async findByNomeCursoExcetoId(nome, curso, id) {
+    const [rows] = await pool.execute(
+      'SELECT id, nome, curso FROM alunos WHERE nome = ? AND curso = ? AND id != ? LIMIT 1',
+      [nome, curso, id]
+    )
+
+    return rows[0] ?? null
+  }
+
+  async countByCurso(curso) {
+    const [rows] = await pool.execute(
+      'SELECT COUNT(*) AS total FROM alunos WHERE curso = ?',
+      [curso]
+    )
+
+    return Number(rows[0].total)
+  }
+
   async create({ nome, curso }) {
     const [result] = await pool.execute(
       'INSERT INTO alunos (nome, curso) VALUES (?, ?)',

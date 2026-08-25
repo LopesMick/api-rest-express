@@ -1,4 +1,9 @@
 import alunoRepository from '../repositories/AlunoRepository.js'
+import alunoService, {
+  AlunoJaCadastradoError,
+  CursoLotadoError,
+  UltimoAlunoDoCursoError
+} from '../services/AlunoService.js'
 
 class AlunoController {
   async index(req, res) {
@@ -24,41 +29,77 @@ class AlunoController {
   async store(req, res) {
     const { nome, curso } = req.body
 
-    const aluno = await alunoRepository.create({ nome, curso })
+    try {
+      const aluno = await alunoService.create({ nome, curso })
 
-    res
-      .status(201)
-      .location(`/alunos/${aluno.id}`)
-      .json(aluno)
+      res
+        .status(201)
+        .location(`/alunos/${aluno.id}`)
+        .json(aluno)
+    } catch (error) {
+      if (error instanceof AlunoJaCadastradoError) {
+        return res.status(409).json({
+          mensagem: 'Aluno já cadastrado neste curso'
+        })
+      }
+
+      if (error instanceof CursoLotadoError) {
+        return res.status(409).json({
+          mensagem: error.message
+        })
+      }
+
+      throw error
+    }
   }
 
   async update(req, res) {
     const id = Number(req.params.id)
     const { nome, curso } = req.body
 
-    const aluno = await alunoRepository.update(id, { nome, curso })
+    try {
+      const aluno = await alunoService.update(id, { nome, curso })
 
-    if (!aluno) {
-      return res.status(404).json({
-        mensagem: 'Aluno não encontrado'
-      })
+      if (!aluno) {
+        return res.status(404).json({
+          mensagem: 'Aluno não encontrado'
+        })
+      }
+
+      res.status(200).json(aluno)
+    } catch (error) {
+      if (error instanceof AlunoJaCadastradoError) {
+        return res.status(409).json({
+          mensagem: 'Aluno já cadastrado neste curso'
+        })
+      }
+
+      throw error
     }
-
-    res.status(200).json(aluno)
   }
 
   async delete(req, res) {
     const id = Number(req.params.id)
 
-    const removido = await alunoRepository.delete(id)
+    try {
+      const removido = await alunoService.delete(id)
 
-    if (!removido) {
-      return res.status(404).json({
-        mensagem: 'Aluno não encontrado'
-      })
+      if (!removido) {
+        return res.status(404).json({
+          mensagem: 'Aluno não encontrado'
+        })
+      }
+
+      res.status(204).send()
+    } catch (error) {
+      if (error instanceof UltimoAlunoDoCursoError) {
+        return res.status(409).json({
+          mensagem: error.message
+        })
+      }
+
+      throw error
     }
-
-    res.status(204).send()
   }
 }
 
