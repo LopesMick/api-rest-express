@@ -24,7 +24,13 @@ app.get('/', (req, res) => {
 
 // CREATE
 app.post('/lista', (req, res) => {
-  const novoAluno = req.body
+  const novoId = lista.length + 1
+
+  const novoAluno = {
+    id: req.body.id ?? novoId,
+    nome: req.body.nome,
+    curso: req.body.curso
+  }
 
   lista.push(novoAluno)
 
