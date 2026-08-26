@@ -1,6 +1,7 @@
 import express from 'express'
 
 import alunosRoutes from './routes/alunos.routes.js'
+import cursosRoutes from './routes/cursos.routes.js'
 
 const app = express()
 
@@ -13,5 +14,6 @@ app.get('/', (req, res) => {
 })
 
 app.use('/alunos', alunosRoutes)
+app.use('/cursos', cursosRoutes)
 
 export default app

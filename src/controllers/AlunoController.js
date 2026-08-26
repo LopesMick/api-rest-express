@@ -1,7 +1,9 @@
 import alunoRepository from '../repositories/AlunoRepository.js'
 import alunoService, {
-  AlunoJaCadastradoError,
-  CursoLotadoError,
+  CursoNaoEncontradoError,
+  CursoInativoError,
+  CursoSemVagasError,
+  AlunoJaMatriculadoError,
   UltimoAlunoDoCursoError
 } from '../services/AlunoService.js'
 
@@ -27,26 +29,26 @@ class AlunoController {
   }
 
   async store(req, res) {
-    const { nome, curso } = req.body
+    const { nome, curso_id: cursoId } = req.body
 
     try {
-      const aluno = await alunoService.create({ nome, curso })
+      const aluno = await alunoService.create({ nome, cursoId: Number(cursoId) })
 
       res
         .status(201)
         .location(`/alunos/${aluno.id}`)
         .json(aluno)
     } catch (error) {
-      if (error instanceof AlunoJaCadastradoError) {
-        return res.status(409).json({
-          mensagem: 'Aluno já cadastrado neste curso'
-        })
+      if (error instanceof CursoNaoEncontradoError) {
+        return res.status(404).json({ mensagem: error.message })
       }
 
-      if (error instanceof CursoLotadoError) {
-        return res.status(409).json({
-          mensagem: error.message
-        })
+      if (
+        error instanceof CursoInativoError ||
+        error instanceof CursoSemVagasError ||
+        error instanceof AlunoJaMatriculadoError
+      ) {
+        return res.status(409).json({ mensagem: error.message })
       }
 
       throw error
@@ -55,10 +57,10 @@ class AlunoController {
 
   async update(req, res) {
     const id = Number(req.params.id)
-    const { nome, curso } = req.body
+    const { nome, curso_id: cursoId } = req.body
 
     try {
-      const aluno = await alunoService.update(id, { nome, curso })
+      const aluno = await alunoService.update(id, { nome, cursoId: Number(cursoId) })
 
       if (!aluno) {
         return res.status(404).json({
@@ -68,10 +70,16 @@ class AlunoController {
 
       res.status(200).json(aluno)
     } catch (error) {
-      if (error instanceof AlunoJaCadastradoError) {
-        return res.status(409).json({
-          mensagem: 'Aluno já cadastrado neste curso'
-        })
+      if (error instanceof CursoNaoEncontradoError) {
+        return res.status(404).json({ mensagem: error.message })
+      }
+
+      if (
+        error instanceof CursoInativoError ||
+        error instanceof CursoSemVagasError ||
+        error instanceof AlunoJaMatriculadoError
+      ) {
+        return res.status(409).json({ mensagem: error.message })
       }
 
       throw error
@@ -93,9 +101,7 @@ class AlunoController {
       res.status(204).send()
     } catch (error) {
       if (error instanceof UltimoAlunoDoCursoError) {
-        return res.status(409).json({
-          mensagem: error.message
-        })
+        return res.status(409).json({ mensagem: error.message })
       }
 
       throw error

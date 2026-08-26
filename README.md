@@ -8,11 +8,11 @@ API RESTful desenvolvida durante a Unidade Curricular de **Programação Web II 
 
 # 1. Descrição
 
-Projeto acadêmico desenvolvido de forma incremental, por etapas versionadas em branches. A base deste README foi escrita na `branch_20260821` (Tutorial 4 — CRUD com Routes, Controllers e Repositories) e é preservada aqui; a branch atual, `branch_Extra`, adiciona um exercício extra descrito na seção 17.
+Projeto acadêmico desenvolvido de forma incremental, por etapas versionadas em branches. A base deste README foi escrita na `branch_20260821` (Tutorial 4 — CRUD com Routes, Controllers e Repositories) e é preservada aqui; a branch atual, `branch_20260825_Extra`, adiciona os exercícios extras descritos nas seções 17 e 18.
 
-O CRUD de alunos deixa de ficar concentrado em `src/app.js` e passa a seguir a separação **Route → Controller → Repository → MySQL**, com persistência real na tabela `alunos`.
+O CRUD de alunos deixa de ficar concentrado em `src/app.js` e passa a seguir a separação **Route → Controller → Repository → MySQL**, com persistência real nas tabelas `alunos` e `cursos`.
 
-Na `branch_20260821` ainda não havia camada Service, pois não existia regra de negócio que a justificasse. A `branch_Extra` introduz a primeira regra de negócio real e, com ela, a camada Service (seção 17).
+Na `branch_20260821` ainda não havia camada Service, pois não existia regra de negócio que a justificasse. A `branch_20260825_Extra` introduz a primeira regra de negócio real (seção 17) e, em seguida, evolui o projeto com uma segunda entidade — `Cursos` — e um relacionamento real entre `Aluno` e `Curso` (seção 18).
 
 ---
 
@@ -24,9 +24,12 @@ Na `branch_20260821` ainda não havia camada Service, pois não existia regra de
 | `branch_20260811` | MySQL 8.4 via Docker Compose, independente da API (Tutorial 2) |
 | `branch_20260818` | Conexão Express ↔ MySQL via `mysql2`/pool, com `SELECT 1` (Tutorial 3) |
 | `branch_20260821` | CRUD real via Route → Controller → Repository → MySQL (Tutorial 4) |
-| `branch_Extra` | Camada Service + regra de negócio real (exercício extra — esta branch) |
+| `branch_20260825` | Atividade principal de 25/08 (branch normal da aula, sem Service) |
+| `branch_20260825_Extra` | Camada Service + regras de negócio + entidade `Cursos` (exercício extra — esta branch, criada a partir da `main` após o merge de `branch_20260821`) |
 
-Desde a `branch_20260821`, o projeto **não usa mais array em memória** para o CRUD. Todos os dados de `/alunos` vêm e voltam do MySQL.
+Desde a `branch_20260821`, o projeto **não usa mais array em memória** para o CRUD. Todos os dados vêm e voltam do MySQL.
+
+`branch_20260825_Extra` é independente de `branch_20260825` — ambas nasceram da mesma `main`, mas seguem propósitos diferentes: uma é a entrega padrão da aula, a outra é a demonstração de Service + regras de negócio + nova entidade.
 
 ---
 
@@ -95,13 +98,19 @@ api-rest-express/
 │       └── opencollection.yml
 ├── src/
 │   ├── controllers/
-│   │   └── AlunoController.js
+│   │   ├── AlunoController.js
+│   │   └── CursoController.js
 │   ├── database/
 │   │   └── pool.js
 │   ├── repositories/
-│   │   └── AlunoRepository.js
+│   │   ├── AlunoRepository.js
+│   │   └── CursoRepository.js
 │   ├── routes/
-│   │   └── alunos.routes.js
+│   │   ├── alunos.routes.js
+│   │   └── cursos.routes.js
+│   ├── services/
+│   │   ├── AlunoService.js
+│   │   └── CursoService.js
 │   ├── app.js
 │   └── server.js
 ├── .env              (local, não versionado)
@@ -135,7 +144,7 @@ Crie um arquivo `.env` na raiz do projeto (baseado em `.env.example`), com `PORT
 ```bash
 git clone https://github.com/LopesMick/api-rest-express.git
 cd api-rest-express
-git switch branch_20260821
+git switch branch_20260825_Extra
 npm install
 docker compose up -d
 ```
@@ -154,6 +163,8 @@ Servidor rodando em http://localhost:3000
 ```
 
 ---
+
+> **Nota:** as seções 9 a 16 descrevem o estado do projeto como estava documentado até a `branch_20260821`/primeira parte da `branch_20260825_Extra` (curso como texto livre, sem entidade própria). A partir da migração para `Cursos` (seção 18), `alunos.curso` foi substituído por `alunos.curso_id`, e o comportamento **atual** do código é o descrito na seção 18. As seções abaixo permanecem como registro histórico da evolução.
 
 # 9. Repository (`src/repositories/AlunoRepository.js`)
 
@@ -348,7 +359,7 @@ Não há camada Service nesta branch, pois ainda não há regra de negócio que 
 
 # 17. Branch Extra — Service e Regra de Negócio
 
-Esta seção documenta a `branch_Extra`, criada a partir da `main` **depois** que a `branch_20260821` (Tutorial 4) foi concluída e mergeada. A `branch_20260821` permanece fiel ao escopo original do professor (Route → Controller → Repository); o conteúdo abaixo é um exercício extra, separado.
+Esta seção documenta a `branch_20260825_Extra`, criada a partir da `main` **depois** que a `branch_20260821` (Tutorial 4) foi concluída e mergeada. A `branch_20260821` permanece fiel ao escopo original do professor (Route → Controller → Repository); o conteúdo abaixo é um exercício extra, separado.
 
 ## 17.1 Por que a Service foi adicionada agora
 
@@ -593,10 +604,247 @@ Essa regra mostra a Service **coordenando uma checagem antes de autorizar uma mu
 
 ---
 
-# 18. Autoria
+# 18. Branch Extra — Services, Regras de Negócio e Cursos
+
+Esta seção documenta a segunda evolução da `branch_20260825_Extra`: a criação da entidade `Cursos` e o relacionamento real entre `Aluno` e `Curso`. Ela **substitui** partes da seção 17 — a regra de duplicidade por `nome + curso` (texto livre), o limite fixo de 5 alunos por curso (`LIMITE_ALUNOS_POR_CURSO`) e a checagem "último aluno do curso" baseada em string deixaram de existir tal como descritas ali. A seção 17 permanece como registro histórico de como a `AlunoService` nasceu; esta seção descreve o estado **atual** do código.
+
+## 18.1 Por que Cursos não é "mais um CRUD"
+
+Um `CursoController`/`CursoRepository` sozinhos, sem nenhuma regra associada, seriam só mais uma tabela. O que justifica a nova entidade é que ela **substitui um dado que antes era um texto solto** (`alunos.curso`, um `VARCHAR` livre) por um relacionamento real, e com isso passa a sustentar decisões que antes eram impossíveis de tomar corretamente:
+
+- antes, `"SI"` e `"Sistemas de Informação"` eram dois valores de texto diferentes, tratados como cursos distintos — um bug estrutural do schema anterior;
+- antes, o limite de alunos por curso era uma constante fixa no código (`LIMITE_ALUNOS_POR_CURSO = 5`), igual para todos os cursos, sem nenhuma relação com a realidade de cada curso;
+- antes, não havia como um curso "não existir" (qualquer string era aceita) nem como um curso ficar temporariamente indisponível para matrícula.
+
+Com `Cursos` como entidade própria, `vagas` e `ativo` passam a ser dados reais, geridos pelo próprio curso — não mais números fixos no código do `AlunoService`.
+
+## 18.2 Migração do schema
+
+`alunos.curso` (texto livre) foi substituído por `alunos.curso_id` (chave estrangeira para `cursos.id`). Antes de alterar o schema, os dados existentes foram inspecionados:
+
+| `alunos.curso` (valor antigo) | Registros | Curso normalizado |
+| --- | --- | --- |
+| `ADS` | 6 | Análise e Desenvolvimento de Sistemas (ADS) |
+| `Sistemas de Informação` | 1 | Sistemas de Informação (SI) |
+| `SI` | 2 | Sistemas de Informação (SI) |
+| `Engenharia de Software` | 4 | Engenharia de Software (ES) |
+
+`SI` e `Sistemas de Informação` foram conscientemente unificados no mesmo curso — são o mesmo curso, só grafado de forma diferente no schema antigo. Nenhum dos 13 alunos existentes foi perdido.
+
+Passos da migração (nessa ordem, sem `DROP TABLE`):
+
+```sql
+CREATE TABLE cursos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    sigla VARCHAR(20) NOT NULL,
+    vagas INT NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+INSERT INTO cursos (nome, sigla, vagas, ativo) VALUES
+  ('Análise e Desenvolvimento de Sistemas', 'ADS', 30, TRUE),
+  ('Sistemas de Informação', 'SI', 20, TRUE),
+  ('Engenharia de Software', 'ES', 10, TRUE);
+
+ALTER TABLE alunos ADD COLUMN curso_id INT NULL;
+
+UPDATE alunos SET curso_id = (SELECT id FROM cursos WHERE sigla = 'ADS') WHERE curso = 'ADS';
+UPDATE alunos SET curso_id = (SELECT id FROM cursos WHERE sigla = 'SI') WHERE curso IN ('Sistemas de Informação', 'SI');
+UPDATE alunos SET curso_id = (SELECT id FROM cursos WHERE sigla = 'ES') WHERE curso = 'Engenharia de Software';
+
+-- validado: 0 registros com curso_id NULL antes de prosseguir
+
+ALTER TABLE alunos MODIFY curso_id INT NOT NULL;
+ALTER TABLE alunos ADD CONSTRAINT fk_alunos_curso FOREIGN KEY (curso_id) REFERENCES cursos(id);
+ALTER TABLE alunos DROP COLUMN curso;
+```
+
+A coluna `curso` só foi removida **depois** de confirmar que 100% dos registros tinham `curso_id` preenchido — nunca de forma silenciosa.
+
+## 18.3 Estrutura de pastas
+
+```text
+src/
+├── controllers/
+│   ├── AlunoController.js
+│   └── CursoController.js
+├── database/
+│   └── pool.js
+├── repositories/
+│   ├── AlunoRepository.js
+│   └── CursoRepository.js
+├── routes/
+│   ├── alunos.routes.js
+│   └── cursos.routes.js
+├── services/
+│   ├── AlunoService.js
+│   └── CursoService.js
+├── app.js
+└── server.js
+```
+
+## 18.4 Arquitetura final
+
+```text
+Route
+ ↓
+Controller
+ ↓
+Service
+ ↓
+Repository
+ ↓
+MySQL
+```
+
+A `AlunoService` passa a depender de **dois** repositories, porque a regra de matrícula envolve as duas entidades:
+
+```text
+AlunoService
+ ├── AlunoRepository (dados do aluno)
+ └── CursoRepository (existência, status e vagas do curso)
+```
+
+## 18.5 `CursoRepository` e `CursoService`
+
+`CursoRepository` só executa SQL — `findAll`, `findById`, `findBySigla`, `findBySiglaExcetoId`, `create`, `update`, `delete`, `countAlunos(cursoId)`. Nenhum desses métodos decide nada; `countAlunos`, por exemplo, só conta linhas.
+
+`CursoService` concentra as regras de curso:
+
+| Regra | Validação | Erro de domínio | HTTP |
+| --- | --- | --- | --- |
+| 1 | `vagas <= 0` | `VagasInvalidasError` | `400` |
+| 2 | excluir curso com alunos matriculados | `CursoComAlunosError` | `409` |
+| 3 (opcional) | `sigla` já cadastrada em outro curso | `SiglaJaCadastradaError` | `409` |
+
+```js
+async delete(id) {
+  const curso = await cursoRepository.findById(id)
+  if (!curso) return false
+
+  const totalAlunos = await cursoRepository.countAlunos(id)
+  if (totalAlunos > 0) {
+    throw new CursoComAlunosError()
+  }
+
+  return cursoRepository.delete(id)
+}
+```
+
+## 18.6 `CursoController` e `cursos.routes.js`
+
+`CursoController` só traduz HTTP ↔ Service/Repository (sem SQL). `index`/`show` usam o Repository direto (não há regra de negócio em leitura); `store`/`update`/`delete` passam pela Service.
+
+```text
+POST   /cursos
+GET    /cursos
+GET    /cursos/:id
+PUT    /cursos/:id
+DELETE /cursos/:id
+```
+
+Registradas em `src/routes/cursos.routes.js` e montadas em `app.js`:
+
+```js
+app.use('/cursos', cursosRoutes)
+```
+
+## 18.7 Regras de matrícula (`AlunoService`)
+
+`AlunoService.create({ nome, cursoId })` segue exatamente este fluxo, na ordem:
+
+```text
+1. CursoRepository.findById(cursoId)
+     → não existe? CursoNaoEncontradoError (404)
+2. curso.ativo === false?
+     → CursoInativoError (409)
+3. CursoRepository.countAlunos(cursoId) >= curso.vagas?
+     → CursoSemVagasError (409)
+4. AlunoRepository.findByNomeCursoId(nome, cursoId)
+     → já existe? AlunoJaMatriculadoError (409)
+5. AlunoRepository.create({ nome, cursoId })
+```
+
+`AlunoService.update(id, { nome, cursoId })` reaplica as mesmas checagens (existência/atividade do curso, duplicidade) e só valida vaga disponível se o aluno estiver de fato **trocando** de curso — evitar que um aluno já matriculado em um curso lotado seja bloqueado ao apenas corrigir o próprio nome.
+
+`AlunoService.delete(id)` mantém a proteção "não remover o último aluno do curso", agora calculada via `CursoRepository.countAlunos(aluno.curso.id)` em vez de uma contagem por string.
+
+## 18.8 Respostas HTTP
+
+| Situação | Status | Corpo |
+| --- | --- | --- |
+| Curso inexistente | `404` | `{ "mensagem": "Curso não encontrado" }` |
+| Curso inativo | `409` | `{ "mensagem": "Curso não está disponível para matrícula" }` |
+| Curso sem vagas | `409` | `{ "mensagem": "Curso sem vagas disponíveis" }` |
+| Matrícula duplicada | `409` | `{ "mensagem": "Aluno já matriculado neste curso" }` |
+| Curso com vagas inválidas | `400` | `{ "mensagem": "Quantidade de vagas deve ser maior que zero" }` |
+| Excluir curso com alunos | `409` | `{ "mensagem": "Não é possível excluir curso com alunos matriculados" }` |
+
+## 18.9 `AlunoRepository` com JOIN
+
+`findAll()` e `findById(id)` agora fazem `JOIN` com `cursos` e retornam o curso aninhado:
+
+```json
+{
+  "id": 1,
+  "nome": "Bruno",
+  "curso": {
+    "id": 1,
+    "nome": "Análise e Desenvolvimento de Sistemas",
+    "sigla": "ADS"
+  }
+}
+```
+
+`POST /alunos` e `PUT /alunos/:id` recebem `curso_id` no corpo da requisição (JSON em `snake_case`, convertido para `cursoId` já no Controller):
+
+```json
+{
+  "nome": "Mickael",
+  "curso_id": 1
+}
+```
+
+## 18.10 Testes — Cursos
+
+| Teste | Requisição | Resultado |
+| --- | --- | --- |
+| Cadastro válido | `POST /cursos` (nome, sigla, vagas, ativo) | `201 Created`, `Location: /cursos/{id}` |
+| Vagas inválidas | `POST /cursos` com `vagas: 0` | `400`, `"Quantidade de vagas deve ser maior que zero"` |
+| Sigla duplicada | `POST /cursos` com `sigla` já existente | `409`, `"Já existe um curso com a sigla ..."` |
+| Listagem | `GET /cursos` | `200`, array de cursos |
+| Busca por ID | `GET /cursos/999` | `404`, `"Curso não encontrado"` |
+| Exclusão sem alunos | `DELETE /cursos/{id}` (curso vazio) | `204 No Content` |
+| Exclusão com alunos | `DELETE /cursos/1` (ADS, com alunos) | `409`, `"Não é possível excluir curso com alunos matriculados"` |
+
+## 18.11 Testes — Matrícula
+
+| Teste | Cenário | Resultado |
+| --- | --- | --- |
+| 1 | Curso existente, ativo, com vaga | `201 Created`, corpo com `curso` aninhado |
+| 2 | `curso_id` inexistente | `404`, `"Curso não encontrado"` |
+| 3 | Curso inativo | `409`, `"Curso não está disponível para matrícula"` |
+| 4 | Curso sem vagas (curso de teste com `vagas: 1`, já ocupado) | `409`, `"Curso sem vagas disponíveis"` |
+| 5 | Mesmo aluno + mesmo curso | `409`, `"Aluno já matriculado neste curso"` |
+| 6 | Mesmo aluno (mesmo nome) + curso diferente | `201 Created` — permitido |
+
+## 18.12 Regressão
+
+`GET /`, `GET /alunos`, `GET /alunos/:id`, `PUT /alunos/:id`, `DELETE /alunos/:id` (incluindo os casos `404` para ID inexistente e `409` para "último aluno do curso") foram revalidados após a migração e continuam com o comportamento esperado — apenas o corpo de `alunos` mudou, de `curso` (string) para `curso` (objeto aninhado).
+
+## 18.13 Limitações desta etapa
+
+- Cursos de teste (`Curso Descontinuado`, `Curso Lotado Teste`) foram criados via API para validar as regras de curso inativo e sem vagas, e permanecem no banco como evidência dos testes.
+- Não há endpoint para "transferir" um aluno de curso além do `PUT` genérico (que já reaplica todas as regras de matrícula).
+- Não há paginação, filtros, autenticação, ORM ou qualquer item listado como fora de escopo desta etapa.
+
+---
+
+# 19. Autoria
 
 **Autor:** Mickael Lopes de Souza
 
 **Disciplina:** Programação Web II — Senac RJ
 
-**Branch:** `branch_Extra` (exercício extra, derivada de `main` após o merge de `branch_20260821`)
+**Branch:** `branch_20260825_Extra` (exercício extra, derivada de `main` após o merge de `branch_20260821`)

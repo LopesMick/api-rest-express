@@ -1,53 +1,100 @@
 import alunoRepository from '../repositories/AlunoRepository.js'
+import cursoRepository from '../repositories/CursoRepository.js'
 
-const LIMITE_ALUNOS_POR_CURSO = 5
-
-export class AlunoJaCadastradoError extends Error {
-  constructor(nome, curso) {
-    super(`Aluno "${nome}" já cadastrado no curso "${curso}"`)
-    this.name = 'AlunoJaCadastradoError'
+export class CursoNaoEncontradoError extends Error {
+  constructor() {
+    super('Curso não encontrado')
+    this.name = 'CursoNaoEncontradoError'
   }
 }
 
-export class CursoLotadoError extends Error {
-  constructor(curso) {
-    super(`Curso "${curso}" atingiu o limite de ${LIMITE_ALUNOS_POR_CURSO} alunos`)
-    this.name = 'CursoLotadoError'
+export class CursoInativoError extends Error {
+  constructor() {
+    super('Curso não está disponível para matrícula')
+    this.name = 'CursoInativoError'
+  }
+}
+
+export class CursoSemVagasError extends Error {
+  constructor() {
+    super('Curso sem vagas disponíveis')
+    this.name = 'CursoSemVagasError'
+  }
+}
+
+export class AlunoJaMatriculadoError extends Error {
+  constructor() {
+    super('Aluno já matriculado neste curso')
+    this.name = 'AlunoJaMatriculadoError'
   }
 }
 
 export class UltimoAlunoDoCursoError extends Error {
-  constructor(curso) {
-    super(`Não é possível remover o último aluno do curso "${curso}"`)
+  constructor() {
+    super('Não é possível remover o último aluno do curso')
     this.name = 'UltimoAlunoDoCursoError'
   }
 }
 
 class AlunoService {
-  async create({ nome, curso }) {
-    const alunoExistente = await alunoRepository.findByNomeCurso(nome, curso)
+  async create({ nome, cursoId }) {
+    const curso = await cursoRepository.findById(cursoId)
+
+    if (!curso) {
+      throw new CursoNaoEncontradoError()
+    }
+
+    if (!curso.ativo) {
+      throw new CursoInativoError()
+    }
+
+    const matriculados = await cursoRepository.countAlunos(cursoId)
+
+    if (matriculados >= curso.vagas) {
+      throw new CursoSemVagasError()
+    }
+
+    const alunoExistente = await alunoRepository.findByNomeCursoId(nome, cursoId)
 
     if (alunoExistente) {
-      throw new AlunoJaCadastradoError(nome, curso)
+      throw new AlunoJaMatriculadoError()
     }
 
-    const totalNoCurso = await alunoRepository.countByCurso(curso)
-
-    if (totalNoCurso >= LIMITE_ALUNOS_POR_CURSO) {
-      throw new CursoLotadoError(curso)
-    }
-
-    return alunoRepository.create({ nome, curso })
+    return alunoRepository.create({ nome, cursoId })
   }
 
-  async update(id, { nome, curso }) {
-    const alunoExistente = await alunoRepository.findByNomeCursoExcetoId(nome, curso, id)
+  async update(id, { nome, cursoId }) {
+    const alunoAtual = await alunoRepository.findById(id)
 
-    if (alunoExistente) {
-      throw new AlunoJaCadastradoError(nome, curso)
+    if (!alunoAtual) {
+      return null
     }
 
-    return alunoRepository.update(id, { nome, curso })
+    const curso = await cursoRepository.findById(cursoId)
+
+    if (!curso) {
+      throw new CursoNaoEncontradoError()
+    }
+
+    if (!curso.ativo) {
+      throw new CursoInativoError()
+    }
+
+    const alunoExistente = await alunoRepository.findByNomeCursoIdExcetoId(nome, cursoId, id)
+
+    if (alunoExistente) {
+      throw new AlunoJaMatriculadoError()
+    }
+
+    if (alunoAtual.curso.id !== cursoId) {
+      const matriculados = await cursoRepository.countAlunos(cursoId)
+
+      if (matriculados >= curso.vagas) {
+        throw new CursoSemVagasError()
+      }
+    }
+
+    return alunoRepository.update(id, { nome, cursoId })
   }
 
   async delete(id) {
@@ -57,10 +104,10 @@ class AlunoService {
       return false
     }
 
-    const totalNoCurso = await alunoRepository.countByCurso(aluno.curso)
+    const totalNoCurso = await cursoRepository.countAlunos(aluno.curso.id)
 
     if (totalNoCurso <= 1) {
-      throw new UltimoAlunoDoCursoError(aluno.curso)
+      throw new UltimoAlunoDoCursoError()
     }
 
     return alunoRepository.delete(id)
